@@ -14,6 +14,8 @@ App para iPhone (web app instalable) para organizar en un solo lugar:
 - **Agenda**: calendario de 5 semanas con las actividades de cada día.
 - **Actividades**: responsable, fecha y hora, prioridad, recordatorio, repetición (diaria, laboral, semanal, quincenal, mensual, bimestral, anual) y notas. Al completar una actividad repetitiva se programa la siguiente.
 - **Recordatorios**: notificaciones mientras la app está abierta o en segundo plano, y botón **Enviar a Calendario** (.ics con alarma) para avisos garantizados del Calendario del iPhone.
+- **Avisos al equipo (manuales)**: cada persona tiene correo y celular. Desde una actividad asignada (botón **Notificar**) o desde la ficha de la persona (**Enviar resumen de pendientes**) se prepara un mensaje formal, editable, con la firma del área (Banco Inbursa o TL Guerrero Consultores). Al elegir **Correo**, **Mensaje** o **WhatsApp** se abre esa app con el texto listo; nada se envía de forma automática. La app registra el último aviso de cada actividad.
+- **Mi firma** (en Ajustes): nombre y cargos que aparecen al final de los mensajes.
 - **Respaldo**: exportar e importar todos los datos en JSON.
 
 Los datos se guardan solo en el dispositivo (localStorage). No hay servidor.

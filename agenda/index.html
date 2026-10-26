@@ -190,6 +190,13 @@ nav.tabs .wrap{display:grid;grid-template-columns:repeat(5,1fr);align-items:cent
 .stack{display:grid;gap:12px}
 
 .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;background:var(--navy);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);max-width:calc(100% - 32px)}
+.channels{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chan{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border-radius:14px;background:var(--surface);border:1px solid var(--line);color:var(--fg);text-decoration:none;font-weight:600;font-size:13.5px;box-shadow:var(--shadow)}
+.chan svg{width:24px;height:24px}
+.chan.mail svg{color:var(--orange)} .chan.sms svg{color:var(--c-inbursa)} .chan.wa svg{color:var(--ok)}
+.msg{min-height:240px;font-size:15px;line-height:1.45}
+.hbtns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.sheet:not([hidden]) ~ .toast{bottom:auto;top:calc(16px + env(safe-area-inset-top,0px))}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 <!--HEAD-END-->
@@ -240,6 +247,7 @@ const AREA_KEYS = ["personal","inbursa","tlg"];
 const PRIO = {alta:{w:3,l:"Alta"}, media:{w:2,l:"Media"}, baja:{w:1,l:"Baja"}};
 const REPEAT = {none:"No se repite", daily:"Cada día", weekdays:"Lunes a viernes", weekly:"Cada semana", biweekly:"Cada 2 semanas", monthly:"Cada mes", bimonthly:"Cada 2 meses", yearly:"Cada año"};
 const REMIND = {"-1":"Sin recordatorio","0":"A la hora","15":"15 min antes","60":"1 hora antes","1440":"1 día antes","4320":"3 días antes","10080":"1 semana antes"};
+const SALUTE = {"Estimado(a)":"Estimado(a)", "Estimado":"Estimado", "Estimada":"Estimada", "Lic.":"Lic.", "C.P.":"C.P.", "Ing.":"Ing.", "Mtro.":"Mtro.", "Mtra.":"Mtra."};
 const DAYS = ["dom","lun","mar","mié","jue","vie","sáb"];
 const MONTHS = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 const IC = {
@@ -249,6 +257,10 @@ const IC = {
   car:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><path d="M3 12h18"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>',
   house:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9v12h14V9"/><path d="M10 21v-6h4v6"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg>',
+  sms:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>',
+  wa:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 20.5l1.3-4.4A8.5 8.5 0 1 1 8 19.3z"/><path d="M9 8.5c0 3.5 2.5 6.5 6.5 6.5l.9-1.6-2-1-1 .9a4.7 4.7 0 0 1-2.7-2.7l.9-1-1-2z"/></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>',
   chev:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>'
 };
 
@@ -333,6 +345,7 @@ let S;
 try { const raw = localStorage.getItem(KEY); if (raw) S = JSON.parse(raw); } catch(e){}
 if (!S || !S.tasks) S = seed();
 S.ui = Object.assign({tab:"hoy", hoyArea:"all", area:"personal", cat:"", team:"inbursa", day:today()}, S.ui||{});
+S.profile = Object.assign({name:"", inbursaTitle:"Gerente de Relaciones Institucionales", tlgTitle:"Director General"}, S.profile||{});
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
 
 const person = id => S.people.find(p => p.id === id);
@@ -368,6 +381,7 @@ function taskItem(t){
         ${asset ? `<span>${esc(asset.name)}</span>` : ""}
         ${t.repeat !== "none" ? `<span title="${REPEAT[t.repeat]}">${IC.repeat}</span>` : ""}
         ${t.remind !== "-1" ? `<span title="${REMIND[t.remind]}">${IC.bell}</span>` : ""}
+        ${t.lastNotice && t.who !== "me" ? `<span title="Aviso enviado por ${esc(t.lastNotice.ch)}">${IC.send} Avisado</span>` : ""}
       </div>
     </button>
     ${avatar(t.who)}
@@ -513,7 +527,8 @@ function taskForm(t, preset){
   const isNew = !t;
   t = t || Object.assign({id:"", title:"", area:S.ui.tab === "areas" ? S.ui.area : (S.ui.tab === "equipo" ? S.ui.team : "personal"), cat:"", who:"me", due:today(), time:"", prio:"media", repeat:"none", remind:"-1", notes:"", assetId:""}, preset||{});
   openSheet(`
-    <div class="phead"><h3>${isNew ? "Nueva actividad" : "Editar actividad"}</h3>${!isNew ? `<button class="btn small" data-act="ics" data-id="${t.id}">Enviar a Calendario</button>` : ""}</div>
+    <div class="phead"><h3>${isNew ? "Nueva actividad" : "Editar actividad"}</h3>${!isNew ? `<div class="hbtns">${t.who !== "me" ? `<button type="button" class="btn small navy" data-act="notify" data-id="${t.id}">Notificar</button>` : ""}<button type="button" class="btn small" data-act="ics" data-id="${t.id}">Calendario</button></div>` : ""}</div>
+    ${!isNew && t.lastNotice && t.who !== "me" ? `<p class="note" style="margin:-4px 0 12px">Último aviso a ${esc(whoName(t.who))}: ${esc(t.lastNotice.ch)} · ${esc(fmtStamp(t.lastNotice.at))}</p>` : ""}
     <form class="form" id="taskForm" data-id="${t.id}">
       <label class="field"><span>Actividad</span><input id="f-title" required maxlength="140" value="${esc(t.title)}" placeholder="Ej. Presentar aviso PLD de la fundación"></label>
       <div class="field"><span>Área</span>${seg("formArea", AREA_KEYS.map(k => [k, AREAS[k].name]), t.area)}</div>
@@ -564,9 +579,11 @@ function saveTask(form){
   const data = {title, area:form.dataset.area, cat:$("#f-cat").value, who:$("#f-who").value, assetId:$("#f-asset").value || "", due:$("#f-due").value, time:$("#f-time").value, remind:$("#f-remind").value, repeat:$("#f-repeat").value, prio:form.dataset.prio, notes:$("#f-notes").value.trim()};
   if (data.repeat !== "none" && !data.due){ toast("Una actividad que se repite necesita fecha"); return; }
   const id = form.dataset.id;
-  if (id){ const t = S.tasks.find(x => x.id === id); const changedWhen = t.due !== data.due || t.time !== data.time || t.remind !== data.remind; Object.assign(t, data, {example:false}); if (changedWhen) t.notified = ""; toast("Cambios guardados"); }
-  else { S.tasks.push(Object.assign({id:uid(), done:false, created:Date.now()}, data)); toast(`Agregada${data.who !== "me" ? " y asignada a " + whoName(data.who) : ""}`); }
-  save(); closeSheet(); render();
+  let tid = id, newlyAssigned = false;
+  if (id){ const t = S.tasks.find(x => x.id === id); const changedWhen = t.due !== data.due || t.time !== data.time || t.remind !== data.remind; newlyAssigned = data.who !== "me" && t.who !== data.who; Object.assign(t, data, {example:false}); if (changedWhen) t.notified = ""; if (newlyAssigned) t.lastNotice = null; toast("Cambios guardados"); }
+  else { tid = uid(); newlyAssigned = data.who !== "me"; S.tasks.push(Object.assign({id:tid, done:false, created:Date.now()}, data)); toast(`Agregada${newlyAssigned ? " y asignada a " + whoName(data.who) : ""}`); }
+  save(); render();
+  if (newlyAssigned && person(data.who)) notifySheet([tid], data.who, true); else closeSheet();
 }
 
 function personForm(p, area){
@@ -581,10 +598,12 @@ function personForm(p, area){
         <label class="field"><span>${fam ? "Parentesco" : "Puesto"}</span><input id="p-role" maxlength="60" value="${esc(p.role)}"></label>
         <label class="field"><span>Área</span><select id="p-area">${AREA_KEYS.map(k => `<option value="${k}"${k===p.area?" selected":""}>${k === "personal" ? "Familia" : AREAS[k].name}</option>`).join("")}</select></label>
       </div>
+      <label class="field"><span>Correo electrónico</span><input id="p-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="120" value="${esc(p.email||"")}" placeholder="nombre@empresa.com"></label>
       <div class="row2">
-        <label class="field"><span>Capacidad (pts / 14 días)</span><input id="p-cap" type="number" inputmode="numeric" min="1" max="99" value="${+p.capacity || 12}"></label>
-        <label class="field"><span>Teléfono</span><input id="p-phone" type="tel" value="${esc(p.phone||"")}"></label>
+        <label class="field"><span>Celular / WhatsApp</span><input id="p-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(p.phone||"")}" placeholder="10 dígitos"></label>
+        <label class="field"><span>Saludo en mensajes</span><select id="p-salute">${opts(SALUTE, p.salute || "Estimado(a)")}</select></label>
       </div>
+      <label class="field"><span>Capacidad (pts / 14 días)</span><input id="p-cap" type="number" inputmode="numeric" min="1" max="99" value="${+p.capacity || 12}"></label>
       <label class="field"><span>Notas</span><textarea id="p-notes">${esc(p.notes||"")}</textarea></label>
       <div class="actions"><button type="submit" class="btn primary">${isNew ? "Dar de alta" : "Guardar"}</button></div>
       ${!isNew ? `<div class="actions" id="delZone"><button type="button" class="btn danger" data-act="askDelPerson">Dar de baja</button></div>` : ""}
@@ -594,7 +613,11 @@ function savePerson(form){
   const name = $("#p-name").value.trim();
   const id = form.dataset.id, ex = id ? person(id) : null;
   if (!name && !(ex && ex.example)){ $("#p-name").focus(); toast("Escribe el nombre"); return; }
-  const data = {name: name || ex.name, role:$("#p-role").value.trim(), area:$("#p-area").value, capacity:Math.max(1, +$("#p-cap").value || 12), phone:$("#p-phone").value.trim(), notes:$("#p-notes").value.trim()};
+  const email = $("#p-email").value.trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ $("#p-email").focus(); toast("Revisa el correo electrónico"); return; }
+  const phone = $("#p-phone").value.trim();
+  if (phone && phone.replace(/\D/g,"").length < 10){ $("#p-phone").focus(); toast("El celular debe tener al menos 10 dígitos"); return; }
+  const data = {name: name || ex.name, role:$("#p-role").value.trim(), area:$("#p-area").value, capacity:Math.max(1, +$("#p-cap").value || 12), email, phone, salute:$("#p-salute").value, notes:$("#p-notes").value.trim()};
   if (ex){ Object.assign(ex, data, {example: name ? false : ex.example}); toast("Datos actualizados"); }
   else { S.people.push(Object.assign({id:uid()}, data)); toast(`${data.name} dado de alta`); }
   save(); closeSheet(); render();
@@ -606,7 +629,7 @@ function personSheet(id){
   const open = tasks.filter(t => !t.done).sort(sortTasks), done = tasks.filter(t => t.done).length;
   const w = workload(id, isMe ? area : null);
   openSheet(`
-    <div class="phead"><div style="display:flex;gap:12px;align-items:center;min-width:0">${avatar(id,true)}<div style="min-width:0"><h3>${esc(isMe ? "Yo" : p.name)}</h3><div class="note">${esc(isMe ? AREAS[area].name : (p.role || ""))}${!isMe && p.phone ? " · " + esc(p.phone) : ""}</div></div></div>${!isMe ? `<button class="btn small" data-act="editperson" data-id="${id}">Editar</button>` : ""}</div>
+    <div class="phead"><div style="display:flex;gap:12px;align-items:center;min-width:0">${avatar(id,true)}<div style="min-width:0"><h3>${esc(isMe ? "Yo" : p.name)}</h3><div class="note">${esc(isMe ? AREAS[area].name : (p.role || ""))}</div>${!isMe && (p.email || p.phone) ? `<div class="note">${esc([p.email, p.phone].filter(Boolean).join(" · "))}</div>` : ""}</div></div>${!isMe ? `<button class="btn small" data-act="editperson" data-id="${id}">Editar</button>` : ""}</div>
     <div class="stats">
       <div class="stat"><b>${w.open}</b><span>Abiertas</span></div>
       <div class="stat crit"><b>${w.over}</b><span>Vencidas</span></div>
@@ -614,7 +637,7 @@ function personSheet(id){
     </div>
     <div class="card" style="margin-bottom:14px"><div class="loadline"><span class="pill ${w.cls}">${w.label}</span><span>${w.pts}/${w.cap} pts · ${w.pct}%</span></div><div class="bar"><i class="${w.cls}" style="width:${Math.min(w.pct,100)}%"></i></div></div>
     <section class="block"><div class="sec-h"><h2>Actividades abiertas</h2></div>${taskList(open, "Sin actividades asignadas.")}</section>
-    <button class="btn primary" style="width:100%" data-act="assign" data-id="${id}" data-v="${area}">Asignar actividad</button>
+    <div class="actions">${!isMe && open.length ? `<button class="btn navy" data-act="notifyPerson" data-id="${id}">Enviar resumen de pendientes</button>` : ""}<button class="btn primary" data-act="assign" data-id="${id}" data-v="${area}">Asignar actividad</button></div>
   `);
 }
 
@@ -655,10 +678,86 @@ function settingsSheet(){
       ${ios && !standalone ? `<div class="card"><h4>Instalar en tu iPhone</h4><p>En Safari toca el botón <b>Compartir</b> y luego <b>Agregar a pantalla de inicio</b>. La app abrirá a pantalla completa, sin barra del navegador.</p></div>` : ""}
       <div class="card"><h4>Recordatorios</h4><p>Notificaciones: <b>${permTxt}</b>. Con la app abierta o en segundo plano te avisamos a la hora configurada. Para avisos garantizados aunque la app esté cerrada, envía tus actividades al Calendario del iPhone.</p>
         <div class="actions">${perm === "default" ? `<button class="btn navy" data-act="notif">Activar notificaciones</button>` : ""}<button class="btn" data-act="icsAll">Enviar pendientes a Calendario</button></div></div>
+      <div class="card"><h4>Mi firma</h4><p>Aparece al final de los mensajes que envías a tu equipo y a tu familia.</p>
+        <form class="form" id="profileForm">
+          <label class="field"><span>Tu nombre</span><input id="pr-name" maxlength="80" autocomplete="name" value="${esc(S.profile.name)}" placeholder="Nombre y apellidos"></label>
+          <label class="field"><span>Cargo en Inbursa</span><input id="pr-inb" maxlength="80" value="${esc(S.profile.inbursaTitle)}"></label>
+          <label class="field"><span>Cargo en TL Guerrero</span><input id="pr-tlg" maxlength="80" value="${esc(S.profile.tlgTitle)}"></label>
+          <div class="actions"><button type="submit" class="btn navy">Guardar firma</button></div>
+        </form></div>
       <div class="card"><h4>Respaldo</h4><p>Tus datos se guardan solo en este iPhone. Exporta un respaldo de vez en cuando y guárdalo en Archivos o iCloud Drive.</p>
         <div class="actions"><button class="btn" data-act="export">Exportar respaldo</button><button class="btn" data-act="import">Importar</button></div></div>
       <div class="card"><h4>Empezar de nuevo</h4><p>Borra todas las actividades, personas, vehículos y casas.</p><div class="actions" id="delZone"><button class="btn danger" data-act="askReset">Borrar todo</button></div></div>
     </div>`);
+}
+
+/* ---------- Avisos manuales (correo, SMS, WhatsApp) ---------- */
+const longDate = s => parseYMD(s).toLocaleDateString("es-MX", {weekday:"long", day:"numeric", month:"long", year:"numeric"});
+const fmtStamp = ts => { const d = new Date(ts); return `${fmtShort(ymd(d))}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (/macintosh/i.test(navigator.userAgent) && "ontouchend" in document);
+function intlPhone(raw){
+  let d = String(raw||"").replace(/\D/g,"");
+  if (!d) return "";
+  if (d.length === 10) d = "52" + d;           // celular mexicano sin lada internacional
+  return d;
+}
+function signature(area){
+  const pr = S.profile, n = pr.name.trim();
+  if (area === "inbursa") return [n, pr.inbursaTitle, "Banco Inbursa"].filter(Boolean).join("\n");
+  if (area === "tlg") return [n, pr.tlgTitle, "TL Guerrero Consultores"].filter(Boolean).join("\n");
+  return n;
+}
+function whenText(t){ return t.due ? longDate(t.due) + (t.time ? `, ${t.time} h` : "") : "Por definir"; }
+function buildMessage(tasks, p){
+  const one = tasks.length === 1, area = p.area;
+  if (area === "personal"){
+    const first = p.name.trim().split(/\s+/)[0];
+    const items = tasks.map(t => `• ${t.title}\n   ${whenText(t)}${t.notes ? "\n   " + t.notes : ""}`).join("\n\n");
+    return `Hola, ${first}:\n\nTe comparto ${one ? "este pendiente" : "estos pendientes"} para tenerlo${one ? "" : "s"} presente${one ? "" : "s"}:\n\n${items}\n\nGracias por tu apoyo.${S.profile.name ? "\n\n" + S.profile.name.trim() : ""}`;
+  }
+  let body;
+  if (one){
+    const t = tasks[0];
+    const L = [`• Actividad: ${t.title}`, `• Rubro: ${t.cat}`, `• Fecha compromiso: ${whenText(t)}`, `• Prioridad: ${PRIO[t.prio].l}`];
+    if (t.repeat !== "none") L.push(`• Periodicidad: ${REPEAT[t.repeat]}`);
+    if (t.notes) L.push(`• Indicaciones: ${t.notes}`);
+    body = `Por este medio le informo que se le ha asignado la siguiente actividad:\n\n${L.join("\n")}\n\nLe agradeceré confirmar de recibido y mantenerme informado sobre su avance. Quedo a su disposición para cualquier duda o comentario.`;
+  } else {
+    const items = tasks.map((t,i) => `${i+1}. ${t.title}\n   Fecha compromiso: ${whenText(t)} · Prioridad: ${PRIO[t.prio].l}${isOverdue(t) ? " · VENCIDA" : ""}${t.notes ? "\n   Indicaciones: " + t.notes : ""}`).join("\n\n");
+    body = `Por este medio le comparto el resumen de las ${tasks.length} actividades que tiene asignadas y pendientes:\n\n${items}\n\nLe agradeceré revisar las fechas compromiso, confirmar de recibido e informarme oportunamente sobre cualquier situación que pudiera afectar su cumplimiento.`;
+  }
+  return `${p.salute || "Estimado(a)"} ${p.name.trim()}:\n\n${body}\n\nSaludos cordiales,\n\n${signature(area)}`.trim();
+}
+function notifySheet(ids, pid, fresh){
+  const p = person(pid); if (!p) return;
+  const tasks = ids.map(id => S.tasks.find(t => t.id === id)).filter(Boolean);
+  const org = p.area === "inbursa" ? "Banco Inbursa · " : p.area === "tlg" ? "TL Guerrero Consultores · " : "";
+  const subject = tasks.length === 1 ? `${org}Asignación de actividad: ${tasks[0].title}` : `${org}Resumen de actividades pendientes`;
+  const missing = [!p.email && "correo", !p.phone && "celular"].filter(Boolean);
+  openSheet(`
+    <div class="phead"><div style="display:flex;gap:12px;align-items:center;min-width:0">${avatar(pid,true)}<div style="min-width:0"><h3>${fresh ? "¿Le avisas a " + esc(p.name.split(/\s+/)[0]) + "?" : "Notificar a " + esc(p.name)}</h3><div class="note">${esc([p.email, p.phone].filter(Boolean).join(" · ") || "Sin datos de contacto")}</div></div></div></div>
+    <div class="form">
+      <p class="note">Revisa y ajusta el mensaje. No se envía nada automáticamente: al elegir un medio se abre la app correspondiente con el texto listo y tú decides si lo envías.</p>
+      <label class="field"><span>Asunto (solo correo)</span><input id="n-subject" maxlength="160" value="${esc(subject)}"></label>
+      <label class="field"><span>Mensaje</span><textarea id="n-msg" class="msg">${esc(buildMessage(tasks, p))}</textarea></label>
+      <div class="channels">
+        <a class="chan mail" id="ch-mail" data-act="sent" data-v="Correo">${IC.mail}Correo</a>
+        <a class="chan sms" id="ch-sms" data-act="sent" data-v="SMS">${IC.sms}Mensaje</a>
+        <a class="chan wa" id="ch-wa" data-act="sent" data-v="WhatsApp" target="_blank" rel="noopener">${IC.wa}WhatsApp</a>
+      </div>
+      ${missing.length ? `<p class="note">Sin ${missing.join(" ni ")} registrado: elegirás el destinatario en la app. <button type="button" class="linkbtn" data-act="editperson" data-id="${pid}">Agregar datos</button></p>` : ""}
+      <div class="actions"><button type="button" class="btn" data-act="copyMsg">Copiar mensaje</button>${fresh ? `<button type="button" class="btn" data-act="close">Ahora no</button>` : ""}</div>
+    </div>`);
+  panel.dataset.ntasks = ids.join(","); panel.dataset.npid = pid;
+  updateLinks();
+}
+function updateLinks(){
+  const p = person(panel.dataset.npid); if (!p) return;
+  const body = $("#n-msg").value, subj = $("#n-subject").value, enc = encodeURIComponent;
+  const ph = intlPhone(p.phone);
+  $("#ch-mail").href = `mailto:${p.email ? enc(p.email).replace(/%40/g,"@") : ""}?subject=${enc(subj)}&body=${enc(body)}`;
+  $("#ch-sms").href = `sms:${ph ? "+" + ph : ""}${isIOS ? "&" : "?"}body=${enc(body)}`;
+  $("#ch-wa").href = `https://wa.me/${ph}?text=${enc(body)}`;
 }
 
 /* ---------- Calendario (.ics) ---------- */
@@ -773,11 +872,25 @@ document.addEventListener("click", e => {
     case "asset": { const a = S.assets.find(x => x.id === id); assetForm(a); panel.dataset.asset = id; break; }
     case "newasset": assetForm(null, v); break;
     case "settings": settingsSheet(); break;
+    case "notify": { const t = S.tasks.find(x => x.id === id); if (t && person(t.who)) notifySheet([t.id], t.who); else toast("Esta actividad no tiene responsable del equipo"); break; }
+    case "notifyPerson": { const ids = S.tasks.filter(t => t.who === id && !t.done).sort(sortTasks).map(t => t.id); notifySheet(ids, id); break; }
+    case "sent": {
+      const at = Date.now();
+      (panel.dataset.ntasks || "").split(",").forEach(tid => { const t = S.tasks.find(x => x.id === tid); if (t) t.lastNotice = {ch:v, at}; });
+      save(); render(); toast(`Se abrió ${v === "Correo" ? "el correo" : v === "SMS" ? "Mensajes" : "WhatsApp"}. Envíalo desde ahí.`, 3500);
+      break;
+    }
+    case "copyMsg": {
+      const ta = $("#n-msg"), txt = ta.value;
+      const fallback = () => { ta.focus(); ta.select(); toast("Selecciona y copia el texto"); };
+      try { navigator.clipboard.writeText(txt).then(() => toast("Mensaje copiado"), fallback); } catch(err){ fallback(); }
+      break;
+    }
     case "cancelDel": closeSheet(); break;
     case "askDel": confirmIn($("#delZone"), "¿Eliminar esta actividad? No se puede deshacer.", "Eliminar", () => { const fid = $("#taskForm").dataset.id; S.tasks = S.tasks.filter(t => t.id !== fid); save(); closeSheet(); render(); toast("Actividad eliminada"); }); break;
     case "askDelPerson": confirmIn($("#delZone"), "Sus actividades pendientes pasarán a ti.", "Dar de baja", () => { const pid = $("#personForm").dataset.id; S.tasks.forEach(t => { if (t.who === pid) t.who = "me"; }); S.people = S.people.filter(p => p.id !== pid); save(); closeSheet(); render(); toast("Persona dada de baja"); }); break;
     case "askDelAsset": confirmIn($("#delZone"), "Las actividades se conservan sin vínculo.", "Eliminar", () => { const aid = $("#assetForm").dataset.id; S.tasks.forEach(t => { if (t.assetId === aid) t.assetId = ""; }); S.assets = S.assets.filter(a => a.id !== aid); save(); closeSheet(); render(); }); break;
-    case "askReset": confirmIn($("#delZone"), "Se borrará todo lo capturado en este dispositivo.", "Borrar todo", () => { S = {v:1, people:[], assets:[], tasks:[], ui:Object.assign({}, S.ui, {tab:"hoy"})}; save(); closeSheet(); render(); toast("Listo, empieza desde cero"); }); break;
+    case "askReset": confirmIn($("#delZone"), "Se borrará todo lo capturado en este dispositivo.", "Borrar todo", () => { S = {v:1, people:[], assets:[], tasks:[], profile:S.profile, ui:Object.assign({}, S.ui, {tab:"hoy"})}; save(); closeSheet(); render(); toast("Listo, empieza desde cero"); }); break;
     case "clearExamples": S.tasks = S.tasks.filter(t => !t.example); S.assets = S.assets.filter(a => !a.example); { const ids = new Set(S.people.filter(p => p.example && !S.tasks.some(t => t.who === p.id)).map(p => p.id)); S.people = S.people.filter(p => !ids.has(p.id)); } save(); render(); toast("Ejemplos borrados"); break;
     case "ics": { const t = S.tasks.find(x => x.id === id); if (!t.due){ toast("Ponle fecha para enviarla al Calendario"); break; } download(t.title.slice(0,40).replace(/[^\wáéíóúñ ]+/gi,"") + ".ics", icsFor([t]), "text/calendar"); break; }
     case "icsAll": { const list = S.tasks.filter(t => !t.done && t.due); if (!list.length){ toast("No hay pendientes con fecha"); break; } download("agenda-pendientes.ics", icsFor(list), "text/calendar"); break; }
@@ -791,13 +904,15 @@ document.addEventListener("submit", e => {
   if (e.target.id === "taskForm") saveTask(e.target);
   else if (e.target.id === "personForm") savePerson(e.target);
   else if (e.target.id === "assetForm") saveAsset(e.target);
+  else if (e.target.id === "profileForm"){ Object.assign(S.profile, {name:$("#pr-name").value.trim(), inbursaTitle:$("#pr-inb").value.trim(), tlgTitle:$("#pr-tlg").value.trim()}); save(); toast("Firma guardada"); }
 });
+document.addEventListener("input", e => { if (e.target.id === "n-msg" || e.target.id === "n-subject") updateLinks(); });
 document.addEventListener("change", e => { if (e.target.id === "f-cat") syncAsset(""); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !sheet.hidden) closeSheet(); });
 $("#importFile").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { try { const d = JSON.parse(r.result); if (!Array.isArray(d.tasks) || !Array.isArray(d.people)) throw 0; S = d; S.assets = S.assets || []; S.ui = Object.assign({}, S.ui, {tab:"hoy"}); save(); closeSheet(); render(); toast("Respaldo importado"); } catch(err){ toast("El archivo no es un respaldo válido"); } };
+  r.onload = () => { try { const d = JSON.parse(r.result); if (!Array.isArray(d.tasks) || !Array.isArray(d.people)) throw 0; S = d; S.assets = S.assets || []; S.profile = Object.assign({name:"", inbursaTitle:"Gerente de Relaciones Institucionales", tlgTitle:"Director General"}, S.profile||{}); S.ui = Object.assign({}, S.ui, {tab:"hoy"}); save(); closeSheet(); render(); toast("Respaldo importado"); } catch(err){ toast("El archivo no es un respaldo válido"); } };
   r.readAsText(f); e.target.value = "";
 });
 
