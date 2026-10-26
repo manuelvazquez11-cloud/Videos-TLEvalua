@@ -197,6 +197,10 @@ nav.tabs .wrap{display:grid;grid-template-columns:repeat(5,1fr);align-items:cent
 .msg{min-height:240px;font-size:15px;line-height:1.45}
 .hbtns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .sheet:not([hidden]) ~ .toast{bottom:auto;top:calc(16px + env(safe-area-inset-top,0px))}
+.loading{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg);color:var(--muted);font-weight:600}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--orange);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 <!--HEAD-END-->
@@ -231,6 +235,7 @@ nav.tabs .wrap{display:grid;grid-template-columns:repeat(5,1fr);align-items:cent
   <div class="panel" role="dialog" aria-modal="true" id="panel"></div>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
+<div class="loading" id="loading" role="status"><div class="spin" aria-hidden="true"></div>Cargando tus datos…</div>
 <input type="file" id="importFile" accept="application/json,.json" class="vh" aria-label="Importar respaldo">
 
 <script>
@@ -341,12 +346,59 @@ function seed(){
   ];
   return {v:1, people, assets, tasks, ui:{tab:"hoy", hoyArea:"all", area:"personal", cat:"", team:"inbursa", day:today()}};
 }
+/* ---------- Guardado: dispositivo (localStorage + IndexedDB) y cuenta de Claude ---------- */
 let S;
-try { const raw = localStorage.getItem(KEY); if (raw) S = JSON.parse(raw); } catch(e){}
-if (!S || !S.tasks) S = seed();
-S.ui = Object.assign({tab:"hoy", hoyArea:"all", area:"personal", cat:"", team:"inbursa", day:today()}, S.ui||{});
-S.profile = Object.assign({name:"", inbursaTitle:"Gerente de Relaciones Institucionales", tlgTitle:"Director General"}, S.profile||{});
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+const IN_ARTIFACT = !document.querySelector('link[rel="manifest"]');
+let syncState = IN_ARTIFACT ? "connecting" : "local", cloudRef = null, cloudTimer = null;
+const validState = d => d && typeof d === "object" && Array.isArray(d.tasks) ? d : null;
+function normalize(){
+  S.people = S.people || []; S.assets = S.assets || []; S.tasks = S.tasks || [];
+  S.ui = Object.assign({tab:"hoy", hoyArea:"all", area:"personal", cat:"", team:"inbursa", day:today()}, S.ui||{});
+  S.profile = Object.assign({name:"", inbursaTitle:"Gerente de Relaciones Institucionales", tlgTitle:"Director General"}, S.profile||{});
+}
+function readLocal(){ try { return validState(JSON.parse(localStorage.getItem(KEY))); } catch(e){ return null; } }
+let idbP;
+function idb(){
+  return idbP = idbP || new Promise((res, rej) => {
+    try { const r = indexedDB.open("agenda-integral", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
+    catch(e){ rej(e); }
+  });
+}
+async function idbPut(txt){ try { (await idb()).transaction("kv", "readwrite").objectStore("kv").put(txt, "state"); } catch(e){} }
+async function idbGet(){
+  try {
+    const db = await idb();
+    return await new Promise(res => { const q = db.transaction("kv").objectStore("kv").get("state"); q.onsuccess = () => { try { res(validState(JSON.parse(q.result))); } catch(e){ res(null); } }; q.onerror = () => res(null); });
+  } catch(e){ return null; }
+}
+function writeLocal(){ const txt = JSON.stringify(S); try { localStorage.setItem(KEY, txt); } catch(e){} idbPut(txt); }
+async function cloudLoad(){
+  if (!IN_ARTIFACT) return null;
+  for (let i = 0; i < 30 && !(window.claude && window.claude.use); i++) await new Promise(r => setTimeout(r, 100));
+  if (!(window.claude && window.claude.use)){ syncState = "off"; return null; }
+  try {
+    const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+    const id = db && user ? await user.id() : null;
+    if (!id){ syncState = "off"; return null; }
+    const ref = db.doc("data/users/" + id + "/agenda");
+    const snap = await ref.get();
+    cloudRef = ref; syncState = "on";
+    return snap.exists ? validState(JSON.parse(snap.data().json)) : null;
+  } catch(e){ syncState = "off"; cloudRef = null; return null; }
+}
+function queueCloud(){ if (!cloudRef) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(pushCloud, 1200); }
+async function pushCloud(retried){
+  clearTimeout(cloudTimer); cloudTimer = null;
+  if (!cloudRef) return;
+  try { await cloudRef.set({json: JSON.stringify(S), at: S.savedAt || Date.now()}); syncState = "on"; }
+  catch(e){
+    const code = e && e.code;
+    if (code === "unavailable" && !retried) { setTimeout(() => pushCloud(true), 1500 + Math.random()*2000); return; }
+    syncState = code === "quota_exceeded" ? "full" : "error";
+    toast(syncState === "full" ? "Tu espacio de guardado está lleno. Exporta un respaldo y borra actividades antiguas." : "No se pudo guardar en tu cuenta. Se reintentará con el siguiente cambio.", 5000);
+  }
+}
+function save(){ S.savedAt = Date.now(); writeLocal(); queueCloud(); }
 
 const person = id => S.people.find(p => p.id === id);
 const whoName = id => id === "me" ? "Yo" : (person(id)?.name || "Sin asignar");
@@ -400,6 +452,10 @@ function exampleBanner(){
   return `<div class="banner"><p>Estás viendo datos de ejemplo. Cambia los nombres de tu familia y tu equipo en <b>Equipo</b>, o bórralos para empezar desde cero.</p><button data-act="clearExamples">Borrar ejemplos</button></div>`;
 }
 
+function syncBanner(){
+  if (!IN_ARTIFACT || syncState === "on" || syncState === "connecting") return "";
+  return `<div class="banner"><p>${syncState === "off" ? "El guardado en tu cuenta no está disponible en esta vista, así que los cambios pueden perderse al cerrar. Abre el enlace con tu sesión de Claude iniciada o usa la app instalada." : "Hay cambios sin guardar en tu cuenta. Se reintentará con el siguiente cambio."}</p></div>`;
+}
 function renderHoy(){
   const t0 = today(), wk = addDays(t0, 7), f = S.ui.hoyArea;
   const open = S.tasks.filter(t => !t.done && (f === "all" || t.area === f)).sort(sortTasks);
@@ -411,6 +467,7 @@ function renderHoy(){
   $("#htitle").textContent = h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
   const team = S.people.filter(p => p.area !== "personal").map(p => ({p, w:workload(p.id)})).sort((a,b) => b.w.pct - a.w.pct).slice(0,3);
   view.innerHTML = `
+    ${syncBanner()}
     ${exampleBanner()}
     <div class="stats">
       <div class="stat crit"><b>${over.length}</b><span>Vencidas</span></div>
@@ -685,7 +742,13 @@ function settingsSheet(){
           <label class="field"><span>Cargo en TL Guerrero</span><input id="pr-tlg" maxlength="80" value="${esc(S.profile.tlgTitle)}"></label>
           <div class="actions"><button type="submit" class="btn navy">Guardar firma</button></div>
         </form></div>
-      <div class="card"><h4>Respaldo</h4><p>Tus datos se guardan solo en este iPhone. Exporta un respaldo de vez en cuando y guárdalo en Archivos o iCloud Drive.</p>
+      <div class="card"><h4>Tus datos</h4><p>${{
+        on:"Se guardan automáticamente en tu cuenta de Claude y en este dispositivo. Siguen ahí aunque cierres la app, y aparecen igual en cualquier dispositivo donde abras este enlace con tu cuenta.",
+        local:"Se guardan en este iPhone, dentro de la app instalada. Exporta un respaldo de vez en cuando y guárdalo en Archivos o iCloud Drive.",
+        connecting:"Conectando con tu cuenta…",
+        full:"Tu espacio de guardado está lleno. Exporta un respaldo y borra actividades completadas antiguas.",
+        error:"El último cambio no se pudo guardar en tu cuenta. Se reintentará con el siguiente cambio.",
+        off:"No se pudo activar el guardado en tu cuenta en esta vista. Los cambios pueden perderse al cerrar: exporta un respaldo."}[syncState]}</p>
         <div class="actions"><button class="btn" data-act="export">Exportar respaldo</button><button class="btn" data-act="import">Importar</button></div></div>
       <div class="card"><h4>Empezar de nuevo</h4><p>Borra todas las actividades, personas, vehículos y casas.</p><div class="actions" id="delZone"><button class="btn danger" data-act="askReset">Borrar todo</button></div></div>
     </div>`);
@@ -785,7 +848,11 @@ function icsFor(tasks){
   L.push("END:VCALENDAR");
   return L.join("\r\n");
 }
-function download(name, text, type){
+async function download(name, text, type){
+  if (IN_ARTIFACT && /\.json$/.test(name)){
+    try { const dl = window.claude && await window.claude.use("downloads"); if (dl){ await dl.save({filename:name, data:text}); return; } }
+    catch(e){ if (e && e.code === "declined") return; }
+  }
   try {
     const url = URL.createObjectURL(new Blob([text], {type}));
     const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -916,11 +983,26 @@ $("#importFile").addEventListener("change", e => {
   r.readAsText(f); e.target.value = "";
 });
 
-render();
-checkReminders();
-setInterval(checkReminders, 30000);
-setInterval(() => { if (sheet.hidden) render(); }, 60000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden){ checkReminders(); if (sheet.hidden) render(); } });
+async function boot(){
+  const local = readLocal() || await idbGet();
+  const remote = await cloudLoad();
+  S = remote && (!local || (remote.savedAt || 0) >= (local.savedAt || 0)) ? remote : (local || seed());
+  normalize();
+  writeLocal();
+  if (cloudRef && S !== remote) pushCloud();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+  $("#loading").hidden = true;
+  render();
+  checkReminders();
+  setInterval(checkReminders, 30000);
+  setInterval(() => { if (sheet.hidden) render(); }, 60000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden){ if (cloudTimer) pushCloud(); }
+    else { checkReminders(); if (sheet.hidden) render(); }
+  });
+  window.addEventListener("pagehide", () => { if (cloudTimer) pushCloud(); });
+}
+boot();
 try { if ("serviceWorker" in navigator && location.protocol === "https:" && document.querySelector('link[rel="manifest"]')) navigator.serviceWorker.register("sw.js"); } catch(e){}
 })();
 </script>

@@ -18,7 +18,12 @@ App para iPhone (web app instalable) para organizar en un solo lugar:
 - **Mi firma** (en Ajustes): nombre y cargos que aparecen al final de los mensajes.
 - **Respaldo**: exportar e importar todos los datos en JSON.
 
-Los datos se guardan solo en el dispositivo (localStorage). No hay servidor.
+### Dónde se guardan los datos
+
+- **App instalada (pantalla de inicio)**: en el iPhone, por duplicado (localStorage e IndexedDB) y con almacenamiento persistente solicitado al sistema. Si uno se borra, se recupera del otro.
+- **Enlace de Claude**: además del dispositivo, en tu cuenta de Claude (base de datos privada del artifact, visible solo para ti). Se recupera al volver a abrir el enlace aunque el teléfono haya borrado su copia.
+
+Al abrir, la app carga la copia más reciente; mientras tanto muestra "Cargando tus datos…".
 
 ### Cómo se calcula la carga
 

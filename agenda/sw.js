@@ -1,5 +1,5 @@
 // Guarda la app en el iPhone para que abra sin conexión.
-const CACHE = "agenda-integral-v2";
+const CACHE = "agenda-integral-v3";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
